@@ -1,0 +1,24 @@
+{
+  "OgnMirror": {
+    "version": 1,
+    "categories": "optics",
+    "description": ["Optical mirror node"],
+    "language": "python",
+    "inputs": {
+      "reflectivity": {
+        "type": "float",
+        "description": "Reflectivity of the mirror"
+      },
+      "position": {
+        "type": "float[3]",
+        "description": "Position in world coordinates"
+      }
+    },
+    "outputs": {
+      "out": {
+        "type": "token",
+        "description": "Output token or data"
+      }
+    }
+  }
+}

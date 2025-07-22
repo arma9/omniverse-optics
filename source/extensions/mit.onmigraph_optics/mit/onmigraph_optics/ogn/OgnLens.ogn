@@ -1,0 +1,24 @@
+{
+  "OgnLens": {
+    "version": 1,
+    "categories": "optics",
+    "description": ["Optical lens node"],
+    "language": "python",
+    "inputs": {
+      "focal_length": {
+        "type": "float",
+        "description": "Focal length of the lens"
+      },
+      "position": {
+        "type": "float[3]",
+        "description": "Position in world coordinates"
+      }
+    },
+    "outputs": {
+      "out": {
+        "type": "token",
+        "description": "Output token or data"
+      }
+    }
+  }
+}

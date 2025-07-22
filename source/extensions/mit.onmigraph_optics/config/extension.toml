@@ -9,22 +9,29 @@
 # its affiliates is strictly prohibited.
 
 [package]
+# Extension metadata
+version = "0.1.0"
 title = "OmniGraph Optics"
-version = "0.1.0"  # Semantic Versioning is used: https://semver.org/
-description = "OmniGraph-based optical system visualization for MZIs, Michelson interferometers, and other optical setups"
-category = "Physics"  # How to categorize this in the Extension Manager
-changelog = "docs/CHANGELOG.md"
-icon = "data/icon.png"  # Icon to show in the Extension Manager
-keywords = ["omnigraph", "optics", "physics", "interferometer", "simulation"]  # Search keywords for the Extension Manager
-preview_image = "data/preview.png"  # Preview to show in the Extension Manager
-readme  = "docs/README.md"  # Path (relative to the root) or content of readme markdown file for UI
-repository = "https://github.com/NVIDIA-Omniverse/kit-app-template"  # URL of the extension source repository
+description = "Optical system builder with custom OmniGraph nodes."
+authors = ["Your Name <your@email.com>"]
+
+[core]
+enabled = true
 
 
 [dependencies]
 "omni.ui" = {}
 "omni.usd" = {}
 "omni.kit.commands" = {}
+"omni.graph.window.action" = {}
+"omni.graph.core" = {}
+"omni.kit.window.extensions" = {}
+"omni.kit.menu.utils" = {}
+"omni.kit.window.console" = {}
+"omni.kit.selection" = {}
+
+[ogn]
+paths = ["mit/onmigraph_optics/ogn"]
 
 
 [settings]

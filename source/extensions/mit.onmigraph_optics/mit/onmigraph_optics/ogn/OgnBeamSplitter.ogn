@@ -1,0 +1,24 @@
+{
+  "OgnBeamSplitter": {
+    "version": 1,
+    "categories": "optics",
+    "description": ["Optical beam splitter node"],
+    "language": "python",
+    "inputs": {
+      "transmission_ratio": {
+        "type": "float",
+        "description": "Transmission ratio of the beam splitter"
+      },
+      "position": {
+        "type": "float[3]",
+        "description": "Position in world coordinates"
+      }
+    },
+    "outputs": {
+      "out": {
+        "type": "token",
+        "description": "Output token or data"
+      }
+    }
+  }
+}
