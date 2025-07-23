@@ -1,0 +1,23 @@
+{
+  "extension": "mit.test_graph_extension",
+  "nodes": {
+    "omni.graph.action.BeamSplitter": {
+      "description": "BeamSplitter",
+      "version": 1,
+      "uiName": "BeamSplitter",
+      "language": "Python"
+    },
+    "omni.graph.action.Lens": {
+      "description": "Lens",
+      "version": 1,
+      "uiName": "Lens",
+      "language": "Python"
+    },
+    "omni.graph.action.Mirror": {
+      "description": "Mirror",
+      "version": 1,
+      "uiName": "Mirror",
+      "language": "Python"
+    }
+  }
+}
