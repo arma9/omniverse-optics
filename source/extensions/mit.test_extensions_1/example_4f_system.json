@@ -1,0 +1,73 @@
+{
+  "nodes": [
+    {
+      "id": 0,
+      "type": "Laser",
+      "name": "Laser_Source",
+      "x": 50.0,
+      "y": 200.0,
+      "rotation": 0,
+      "attributes": {}
+    },
+    {
+      "id": 1,
+      "type": "Lens",
+      "name": "Lens_1",
+      "x": 150.0,
+      "y": 200.0,
+      "rotation": 0,
+      "attributes": {
+        "focal_length": 100.0
+      }
+    },
+    {
+      "id": 2,
+      "type": "Lens",
+      "name": "Lens_2",
+      "x": 350.0,
+      "y": 200.0,
+      "rotation": 0,
+      "attributes": {
+        "focal_length": 100.0
+      }
+    },
+    {
+      "id": 3,
+      "type": "Camera",
+      "name": "Camera_Detector",
+      "x": 450.0,
+      "y": 200.0,
+      "rotation": 0,
+      "attributes": {}
+    }
+  ],
+  "edges": [
+    {
+      "source": 0,
+      "source_port": "output",
+      "target": 1,
+      "target_port": "input",
+      "attributes": {
+        "length_cm": 10.0
+      }
+    },
+    {
+      "source": 1,
+      "source_port": "output",
+      "target": 2,
+      "target_port": "input",
+      "attributes": {
+        "length_cm": 20.0
+      }
+    },
+    {
+      "source": 2,
+      "source_port": "output",
+      "target": 3,
+      "target_port": "input",
+      "attributes": {
+        "length_cm": 10.0
+      }
+    }
+  ]
+}

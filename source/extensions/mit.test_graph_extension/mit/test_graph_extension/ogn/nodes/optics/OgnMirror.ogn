@@ -1,0 +1,28 @@
+{
+    "OgnMirror": {
+        "version": 1,
+        "description": "A custom OmniGraph node representing a mirror.",
+        "categories": ["Optics"],
+        "language": "Python",
+        "metadata": {
+            "uiName": "Mirror"
+        },
+        "inputs": {
+            "input_beam": {
+                "type": "bundle",
+                "description": "Input light beam"
+            },
+            "reflectivity": {
+                "type": "float",
+                "description": "Mirror reflectivity percentage",
+                "default": 99.0
+            }
+        },
+        "outputs": {
+            "output_beam": {
+                "type": "bundle",
+                "description": "Reflected beam"
+            }
+        }
+    }
+}

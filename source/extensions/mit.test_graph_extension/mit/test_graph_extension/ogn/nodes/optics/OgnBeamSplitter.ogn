@@ -1,0 +1,32 @@
+{
+    "OgnBeamSplitter": {
+        "version": 1,
+        "description": "A custom OmniGraph node representing a beam splitter.",
+        "categories": ["Optics"],
+        "language": "Python",
+        "metadata": {
+            "uiName": "Beam Splitter"
+        },
+        "inputs": {
+            "input_beam": {
+                "type": "bundle",
+                "description": "Input light beam"
+            },
+            "transmission_ratio": {
+                "type": "float",
+                "description": "Transmission ratio percentage",
+                "default": 50.0
+            }
+        },
+        "outputs": {
+            "transmitted_beam": {
+                "type": "bundle",
+                "description": "Transmitted beam"
+            },
+            "reflected_beam": {
+                "type": "bundle",
+                "description": "Reflected beam"
+            }
+        }
+    }
+}

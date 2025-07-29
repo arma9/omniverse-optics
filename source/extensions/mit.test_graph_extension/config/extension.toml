@@ -22,13 +22,20 @@ repository = "https://github.com/NVIDIA-Omniverse/kit-app-template"  # URL of th
 enabled = true
 writeToBuildFolder = false
 
+[ogn]
+nodes = ["ogn/nodes.json"]
 
 [dependencies]
 "omni.kit.uiapp" = {}
+"omni.graph" = {}       # For basic functionality
+"omni.graph.tools" = {} # For node generation
 
+# Watch the .ogn files for hot reloading (only works for Python files)
+[fswatcher.patterns]
+include = ["*.ogn", "*.py"]
+exclude = ["Ogn*Database.py"]
 
 [settings]
-
 
 [[python.module]]
 name = "mit.test_graph_extension"   # ← dotted import path
@@ -43,7 +50,10 @@ pages = [
 [[test]]
 dependencies = [
     "omni.kit.test",
-    "omni.kit.ui_test"  # UI testing extension
+    "omni.kit.ui_test",  # UI testing extension
+    "omni.graph.action",
+    "omni.graph.nodes",
+    "omni.graph.scriptnode",
 ]
 
 args = [

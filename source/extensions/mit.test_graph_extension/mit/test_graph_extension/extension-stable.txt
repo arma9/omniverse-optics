@@ -14,14 +14,6 @@ import omni.ext
 import omni.ui as ui
 import omni.graph.core as og
 
-from mit.test_graph_extension.ogn.nodes.optics.OgnBeamSplitter import OgnBeamSplitter
-from mit.test_graph_extension.ogn.nodes.optics.OgnLens import OgnLens
-from mit.test_graph_extension.ogn.nodes.optics.OgnMirror import OgnMirror
-
-print("[DEBUG] Imported OgnBeamSplitter:", OgnBeamSplitter)
-print("[DEBUG] Imported OgnLens:", OgnLens)
-print("[DEBUG] Imported OgnMirror:", OgnMirror)
-
 # -----------------------------------------------------------------------------
 # Public helper (example)
 # -----------------------------------------------------------------------------
@@ -44,7 +36,6 @@ class MyExtension(omni.ext.IExt):
 
     def on_startup(self, _ext_id):
         print("[mit.test_graph_extension] Extension startup")
-        print("[DEBUG] on_startup called with _ext_id:", _ext_id)
 
         # counters ---------------------------------------------------------
         self._graph_counter = 1
@@ -89,17 +80,12 @@ class MyExtension(omni.ext.IExt):
     # ------------------------------------------------------------------
 
     def _update_ui(self):
-        print("[DEBUG] _update_ui called")
-        if self._graph:
-            print("[DEBUG] _graph is:", self._graph)
         if self._graph and self._graph.is_valid():
             nodes = self._graph.get_nodes()
-            print("[DEBUG] Current nodes in graph:", nodes)
             info  = "\n".join(f"{n.get_prim_path()} ({n.get_type_name()})" for n in nodes)
             self._graph_label.text = f"Graph Path: {self._graph_path}"
             self._node_label.text  = "Nodes:\n" + info
         else:
-            print("[DEBUG] No valid graph in _update_ui")
             self._graph_label.text = "No graph created."
             self._node_label.text  = "Nodes:\n-"
 
@@ -108,9 +94,7 @@ class MyExtension(omni.ext.IExt):
     # ------------------------------------------------------------------
 
     def _create_empty_graph(self):
-        print("[DEBUG] _create_empty_graph called")
         self._graph_path = f"/World/graph{self._graph_counter}"
-        print(f"[DEBUG] New graph path: {self._graph_path}")
         self._graph_counter += 1
 
         cfg = {
@@ -118,10 +102,8 @@ class MyExtension(omni.ext.IExt):
             "evaluator_name": "execution",
             "pipeline_stage": og.GraphPipelineStage.GRAPH_PIPELINE_STAGE_SIMULATION,
         }
-        print("[DEBUG] Graph config:", cfg)
         self._graph = og.Controller.create_graph(cfg)
         print(f"Created Action Graph at {self._graph_path}")
-        print("[DEBUG] Created graph object:", self._graph)
 
         # reset node counters for this graph
         self._constant_counter = 1
@@ -138,51 +120,30 @@ class MyExtension(omni.ext.IExt):
     # ------------------------------------------------------------------
 
     def _add_constant(self):
-        print("[DEBUG] _add_constant called")
         self._add_node("constant", self._constant_counter, "omni.graph.nodes.ConstantDouble")
         self._constant_counter += 1
 
     def _add_add(self):
-        print("[DEBUG] _add_add called")
         self._add_node("add", self._add_counter, "omni.graph.nodes.Add")
         self._add_counter += 1
 
     def _add_sub(self):
-        print("[DEBUG] _add_sub called")
         self._add_node("subtract", self._sub_counter, "omni.graph.nodes.Subtract")
         self._sub_counter += 1
 
     def _add_beam(self):
-        print("[DEBUG] _add_beam called")
-        try:
-            node_type = OgnBeamSplitter.get_node_type_name()
-            print("[DEBUG] OgnBeamSplitter.get_node_type_name():", node_type)
-        except Exception as e:
-            print("[ERROR] Exception in OgnBeamSplitter.get_node_type_name():", e)
-            node_type = "<ERROR>"
-        self._add_node("beam_splitter", self._beam_counter, node_type)
+        self._add_node("beam_splitter", self._beam_counter,
+                       "mit.test_graph_extension.ogn.nodes.optics.OgnBeamSplitter")
         self._beam_counter += 1
 
     def _add_lens(self):
-        print("[DEBUG] _add_lens called")
-        try:
-            node_type = OgnLens.get_node_type_name()
-            print("[DEBUG] OgnLens.get_node_type_name():", node_type)
-        except Exception as e:
-            print("[ERROR] Exception in OgnLens.get_node_type_name():", e)
-            node_type = "<ERROR>"
-        self._add_node("lens", self._lens_counter, node_type)
+        self._add_node("lens", self._lens_counter,
+                       "mit.test_graph_extension.ogn.nodes.optics.OgnLens")
         self._lens_counter += 1
 
     def _add_mirror(self):
-        print("[DEBUG] _add_mirror called")
-        try:
-            node_type = OgnMirror.get_node_type_name()
-            print("[DEBUG] OgnMirror.get_node_type_name():", node_type)
-        except Exception as e:
-            print("[ERROR] Exception in OgnMirror.get_node_type_name():", e)
-            node_type = "<ERROR>"
-        self._add_node("mirror", self._mirror_counter, node_type)
+        self._add_node("mirror", self._mirror_counter,
+                       "mit.test_graph_extension.ogn.nodes.optics.OgnMirror")
         self._mirror_counter += 1
 
     # ------------------------------------------------------------------
@@ -190,47 +151,28 @@ class MyExtension(omni.ext.IExt):
     # ------------------------------------------------------------------
 
     def _add_node(self, base: str, count: int, node_type: str):
-        print(f"[DEBUG] _add_node called with base={base}, count={count}, node_type={node_type}")
         if not (self._graph and self._graph.is_valid()):
             print("[mit.test_graph_extension] No valid graph. Create one first.")
-            print("[ERROR] _add_node: No valid graph object or graph is invalid.")
             return
 
         node_name = f"{self._graph_path}/{base}{count}"
-        print(f"[DEBUG] Creating node with name: {node_name} and type: {node_type}")
-        try:
-            node = self._graph.create_node(node_name, node_type, True)
-            print(f"[DEBUG] create_node returned: {node}")
-        except Exception as e:
-            print(f"[ERROR] Exception during create_node: {e}")
-            node = None
+        node      = self._graph.create_node(node_name, node_type, True)
 
         if node and node.is_valid():
             print(f"Added {base} node: {node.get_prim_path()}")
             self._update_ui()
-            try:
-                self._graph.evaluate()
-                print("[DEBUG] Graph evaluated after node add.")
-            except Exception as e:
-                print(f"[ERROR] Exception during graph evaluate: {e}")
+            self._graph.evaluate()
         else:
             print(f"Failed to add {base} node.')")
-            print(f"[ERROR] Node creation failed for {node_name} of type {node_type}")
 
     # ------------------------------------------------------------------
     # Manual refresh button
     # ------------------------------------------------------------------
 
     def _refresh_graph(self):
-        print("[DEBUG] _refresh_graph called")
         if self._graph and self._graph.is_valid():
-            try:
-                self._graph.evaluate()
-                print("Graph manually refreshed.")
-            except Exception as e:
-                print(f"[ERROR] Exception during manual graph refresh: {e}")
-        else:
-            print("[ERROR] _refresh_graph: No valid graph to refresh.")
+            self._graph.evaluate()
+            print("Graph manually refreshed.")
 
     # ------------------------------------------------------------------
     # Shutdown
@@ -238,4 +180,3 @@ class MyExtension(omni.ext.IExt):
 
     def on_shutdown(self):
         print("[mit.test_graph_extension] Extension shutdown")
-        print("[DEBUG] on_shutdown called")

@@ -1,19 +1,19 @@
 {
   "extension": "mit.test_graph_extension",
   "nodes": {
-    "omni.graph.action.BeamSplitter": {
+    "mit.test_graph_extension.ogn.nodes.optics.OgnBeamSplitter": {
       "description": "BeamSplitter",
       "version": 1,
       "uiName": "BeamSplitter",
       "language": "Python"
     },
-    "omni.graph.action.Lens": {
+    "mit.test_graph_extension.ogn.nodes.optics.OgnLens": {
       "description": "Lens",
       "version": 1,
       "uiName": "Lens",
       "language": "Python"
     },
-    "omni.graph.action.Mirror": {
+    "mit.test_graph_extension.ogn.nodes.optics.OgnMirror": {
       "description": "Mirror",
       "version": 1,
       "uiName": "Mirror",

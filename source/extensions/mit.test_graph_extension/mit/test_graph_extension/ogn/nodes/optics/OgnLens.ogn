@@ -1,0 +1,28 @@
+{
+    "OgnLens": {
+        "version": 1,
+        "description": "A custom OmniGraph node representing a lens.",
+        "categories": ["Optics"],
+        "language": "Python",
+        "metadata": {
+            "uiName": "Lens"
+        },
+        "inputs": {
+            "input_beam": {
+                "type": "bundle",
+                "description": "Input light beam"
+            },
+            "focal_length": {
+                "type": "float",
+                "description": "Focal length in millimeters",
+                "default": 50.0
+            }
+        },
+        "outputs": {
+            "output_beam": {
+                "type": "bundle",
+                "description": "Output focused beam"
+            }
+        }
+    }
+}
