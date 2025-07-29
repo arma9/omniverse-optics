@@ -132,64 +132,67 @@ def launch_pyside6_graph_editor():
         return None
 
 def wavelength_to_rgb(wavelength_nm):
-    """Convert wavelength in nanometers to RGB color tuple.
+    """Convert wavelength in nanometers to intense, saturated RGB color tuple.
 
     Args:
         wavelength_nm: Wavelength in nanometers (400-700nm range for visible light)
 
     Returns:
-        Tuple of (r, g, b) values in range 0.0-1.0
+        Tuple of (r, g, b) values in range 0.0-1.0 with maximum saturation and brightness
     """
     # Clamp wavelength to visible range
     wavelength = max(400, min(700, wavelength_nm))
 
+    # Create intense, saturated colors across the spectrum
     if wavelength >= 380 and wavelength <= 440:
-        # Violet to Blue
-        red = -(wavelength - 440) / (440 - 380)
+        # Violet to Blue - intense purple/blue
+        red = (440 - wavelength) / (440 - 380)
         green = 0.0
         blue = 1.0
     elif wavelength >= 440 and wavelength <= 490:
-        # Blue to Cyan
+        # Blue to Cyan - bright blue to cyan
         red = 0.0
         green = (wavelength - 440) / (490 - 440)
         blue = 1.0
     elif wavelength >= 490 and wavelength <= 510:
-        # Cyan to Green
+        # Cyan to Green - cyan to bright green
         red = 0.0
         green = 1.0
-        blue = -(wavelength - 510) / (510 - 490)
+        blue = (510 - wavelength) / (510 - 490)
     elif wavelength >= 510 and wavelength <= 580:
-        # Green to Yellow
+        # Green to Yellow - bright green to intense yellow
         red = (wavelength - 510) / (580 - 510)
         green = 1.0
         blue = 0.0
     elif wavelength >= 580 and wavelength <= 645:
-        # Yellow to Red
+        # Yellow to Red - intense yellow to bright red
         red = 1.0
-        green = -(wavelength - 645) / (645 - 580)
+        green = (645 - wavelength) / (645 - 580)
         blue = 0.0
     elif wavelength >= 645 and wavelength <= 700:
-        # Red
+        # Red - maximum intensity red
         red = 1.0
         green = 0.0
         blue = 0.0
     else:
-        # Outside visible range
-        red = 0.0
-        green = 0.0
-        blue = 0.0
+        # Outside visible range - default to white
+        red = 1.0
+        green = 1.0
+        blue = 1.0
 
-    # Apply intensity fade at extremes
-    if wavelength >= 380 and wavelength <= 420:
-        factor = 0.3 + 0.7 * (wavelength - 380) / (420 - 380)
-    elif wavelength >= 420 and wavelength <= 645:
-        factor = 1.0
-    elif wavelength >= 645 and wavelength <= 700:
-        factor = 0.3 + 0.7 * (700 - wavelength) / (700 - 645)
-    else:
-        factor = 0.0
+    # Apply maximum intensity boost - no fading at extremes
+    # All colors get full brightness and saturation
+    intensity_boost = 1.0  # Maximum intensity
 
-    return (red * factor, green * factor, blue * factor)
+    # Optional: Add slight boost to make colors even more vivid
+    saturation_boost = 1.2  # 20% over-saturation for visual impact
+
+    # Apply boosts while keeping values in valid range
+    red = min(1.0, red * intensity_boost * saturation_boost)
+    green = min(1.0, green * intensity_boost * saturation_boost)
+    blue = min(1.0, blue * intensity_boost * saturation_boost)
+
+    return (red, green, blue)
 
 class OpticalLayoutGenerator:
     """Generates USD scenes from optical graph JSON files using CAD prefabs."""

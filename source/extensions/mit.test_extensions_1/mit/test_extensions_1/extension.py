@@ -1622,8 +1622,26 @@ class MyExtension(omni.ext.IExt):
                     intensity_attr = light.GetIntensityAttr()
                     if not intensity_attr:
                         intensity_attr = light.CreateIntensityAttr()
-                    # Use a reasonable intensity value
-                    intensity_attr.Set(1000.0)
+                    # Use a much higher intensity value for maximum visual impact
+                    intensity_attr.Set(5000.0)  # Increased from 1000 to 5000 for vivid colors
+
+                    # Set diffuse multiplier for more intense color spread
+                    try:
+                        diffuse_attr = light.GetDiffuseAttr()
+                        if not diffuse_attr:
+                            diffuse_attr = light.CreateDiffuseAttr()
+                        diffuse_attr.Set(2.0)  # Boost diffuse lighting
+                    except:
+                        pass  # Not all light types may have diffuse
+
+                    # Enable specular for extra brilliance
+                    try:
+                        specular_attr = light.GetSpecularAttr()
+                        if not specular_attr:
+                            specular_attr = light.CreateSpecularAttr()
+                        specular_attr.Set(1.5)  # Boost specular highlights
+                    except:
+                        pass  # Not all light types may have specular
 
                     print(f"[mit.test_extensions_1] Applied color RGB({r:.3f}, {g:.3f}, {b:.3f}) to CylinderLight at {light_prim.GetPath()}")
                 else:
