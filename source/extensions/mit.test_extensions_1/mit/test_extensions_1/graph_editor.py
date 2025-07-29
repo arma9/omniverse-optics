@@ -20,6 +20,9 @@ from pxr import Usd, UsdGeom, Sdf, Gf
 
 # Global variable to track the graph editor process
 _graph_editor_process = None
+# Global variable to track currently loaded graph
+_current_graph_data = None
+_current_graph_path = None
 
 def check_pyside6_availability():
     """Check if PySide6 is available in the current Python environment."""
@@ -763,6 +766,17 @@ class OpticalLayoutGenerator:
 
         return sanitized
 
+def set_current_graph_data(graph_data, graph_path):
+    """Set the currently loaded graph data for simulation."""
+    global _current_graph_data, _current_graph_path
+    _current_graph_data = graph_data
+    _current_graph_path = graph_path
+    print(f"[DEBUG] Set current graph: {Path(graph_path).name if graph_path else 'None'}")
+
+def get_current_graph_data():
+    """Get the currently loaded graph data."""
+    return _current_graph_data, _current_graph_path
+
 def load_and_generate_scene_with_picker():
     """Load a graph JSON file using a file picker and generate USD scene."""
     try:
@@ -844,24 +858,38 @@ def load_and_generate_scene_with_picker():
         carb.log_error(f"Traceback: {traceback.format_exc()}")
 
 def _load_json_and_generate_scene(json_path):
-    """Helper function to load JSON and generate scene."""
+    """Common function to load JSON and generate USD scene."""
     try:
-        generator = OpticalLayoutGenerator()
-        graph_data = generator.load_graph_json(json_path)
+        carb.log_info(f"Loading JSON file: {json_path}")
 
-        if graph_data:
-            carb.log_info("JSON loaded successfully, generating USD scene...")
-            success = generator.create_usd_scene(graph_data)
-            if success:
-                carb.log_info("USD scene generation completed successfully!")
-            else:
-                carb.log_error("USD scene generation failed")
+        # Load and parse JSON
+        with open(json_path, 'r') as f:
+            graph_data = json.load(f)
+
+        print(f"[DEBUG] Loaded graph with {len(graph_data['nodes'])} nodes and {len(graph_data['edges'])} edges")
+
+        # Set as current graph for simulation
+        set_current_graph_data(graph_data, json_path)
+
+        # Generate USD scene
+        generator = OpticalLayoutGenerator()
+        success = generator.create_usd_scene(graph_data)
+
+        if success:
+            carb.log_info("USD scene generation completed successfully")
+            print("[DEBUG] USD scene generation completed successfully")
         else:
-            carb.log_error("Failed to load graph data from JSON")
+            carb.log_error("USD scene generation failed")
+            print("[DEBUG ERROR] USD scene generation failed")
+
+        return success
+
     except Exception as e:
-        carb.log_error(f"Error loading JSON and generating scene: {e}")
+        carb.log_error(f"Error in JSON to USD conversion: {e}")
+        print(f"[DEBUG ERROR] Error in JSON to USD conversion: {e}")
         import traceback
-        carb.log_error(f"Traceback: {traceback.format_exc()}")
+        traceback.print_exc()
+        return False
 
 def load_and_generate_scene():
     """Load a graph JSON file and generate USD scene."""
@@ -928,10 +956,17 @@ def get_available_json_files():
 def load_specific_json_file(json_path):
     """Load a specific JSON file and generate USD scene."""
     try:
-        carb.log_info(f"Loading specific JSON file: {json_path}")
-        _load_json_and_generate_scene(json_path)
+        with open(json_path, 'r') as f:
+            graph_data = json.load(f)
+
+        # Set as current graph for simulation
+        set_current_graph_data(graph_data, json_path)
+
+        # Generate USD scene
+        return _load_json_and_generate_scene(json_path)
     except Exception as e:
-        carb.log_error(f"Error loading specific JSON file: {e}")
+        print(f"[DEBUG ERROR] Error loading JSON file {json_path}: {e}")
+        return False
 
 def create_minimal_json_loader():
     """Create a minimal JSON loader window - absolutely basic."""
@@ -1447,7 +1482,67 @@ def create_graph_editor_interface(extension_ref=None):
                     current_wavelength = wavelength_model.get_value_as_float()
                     current_beam_waist = beam_waist_model.get_value_as_float()
                     print(f"[DEBUG] Simulate clicked - Wavelength: {current_wavelength:.1f}nm, Beam Waist: {current_beam_waist:.2f}mm")
-                    carb.log_info(f"Simulate placeholder called with {current_wavelength:.1f}nm, {current_beam_waist:.2f}mm waist")
+                    carb.log_info(f"Starting graph simulation with {current_wavelength:.1f}nm, {current_beam_waist:.2f}mm waist")
+
+                    try:
+                        # Get the currently loaded graph data
+                        graph_data, graph_path = get_current_graph_data()
+
+                        if graph_data is None:
+                            # Fallback to demo graph if no graph is loaded
+                            print("[DEBUG] No graph loaded, using demo graph...")
+                            current_file = Path(__file__).resolve()
+                            for parent in current_file.parents:
+                                if parent.name == "kit-app-template":
+                                    demo_path = parent / "source" / "physics" / "chromatix" / "fourfplusmichelson.json"
+                                    if demo_path.exists():
+                                        with open(demo_path, 'r') as f:
+                                            graph_data = json.load(f)
+                                        graph_path = str(demo_path)
+                                        set_current_graph_data(graph_data, graph_path)
+                                        break
+                            else:
+                                carb.log_error("No graph loaded and could not find demo graph")
+                                print("[DEBUG ERROR] No graph loaded and could not find demo graph")
+                                return
+
+                        print(f"[DEBUG] Using graph: {Path(graph_path).name}")
+                        print(f"[DEBUG] Graph has {len(graph_data['nodes'])} nodes and {len(graph_data['edges'])} edges")
+
+                        # Import and run the graph simulation
+                        from .graph_simulation import simulate_graph_optical_system, plot_and_save_graph_results
+
+                        print(f"[DEBUG] Running graph simulation...")
+                        results = simulate_graph_optical_system(
+                            graph_data,
+                            wavelength_nm=current_wavelength,
+                            beam_waist_mm=current_beam_waist
+                        )
+
+                        if results.get("success", False):
+                            print(f"[DEBUG] Graph simulation successful! Found {len(results.get('terminal_fields', {}))} terminals, {len(results.get('camera_fields', {}))} cameras")
+
+                            # Save results as images
+                            saved_files = plot_and_save_graph_results(results)
+
+                            if saved_files:
+                                print(f"[DEBUG] Saved {len(saved_files)} result images:")
+                                for file_path in saved_files:
+                                    print(f"[DEBUG]   - {Path(file_path).name}")
+                                carb.log_info(f"Graph simulation complete! Saved {len(saved_files)} images")
+                            else:
+                                carb.log_warn("Graph simulation completed but no images were saved")
+                                print("[DEBUG] Graph simulation completed but no images were saved")
+                        else:
+                            error_msg = results.get("error", "Unknown error")
+                            carb.log_error(f"Graph simulation failed: {error_msg}")
+                            print(f"[DEBUG ERROR] Graph simulation failed: {error_msg}")
+
+                    except Exception as e:
+                        carb.log_error(f"Error in graph simulation: {e}")
+                        print(f"[DEBUG ERROR] Error in graph simulation: {e}")
+                        import traceback
+                        traceback.print_exc()
 
                 ui.Button("Simulate", clicked_fn=simulate_placeholder)
 
