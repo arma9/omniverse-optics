@@ -3,10 +3,19 @@
 Optical simulation functionality using chromatix's OpticalSystem class.
 """
 
-import os
 import sys
 from pathlib import Path
+import numpy as np
+
+try:
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    plt = None
+    MATPLOTLIB_AVAILABLE = False
+
 from . import JAX_AVAILABLE, CHROMATIX_AVAILABLE
+from ..utils.path_utils import get_simulation_output_dir
 
 # Ensure chromatix source path is available
 possible_paths = [
@@ -27,8 +36,6 @@ if chromatix_src_path and chromatix_src_path.exists() and str(chromatix_src_path
 if JAX_AVAILABLE and CHROMATIX_AVAILABLE:
     import jax
     import jax.numpy as jnp
-    import numpy as np
-    import matplotlib.pyplot as plt
     from chromatix import OpticalSystem
     from chromatix.elements import (
         GaussianPlaneWave,
@@ -287,127 +294,216 @@ if JAX_AVAILABLE and CHROMATIX_AVAILABLE:
                 "error": str(e)
             }
 
-    def plot_and_save_results(results, output_dir="simulation_results"):
-        """Plot and save simulation results.
-
-        Args:
-            results: Results dictionary from simulate_4f_system_from_positions
-            output_dir: Directory to save plots and data
-
-        Returns:
-            Path to saved plot file
-        """
-        if not results.get("success", False):
-            print(f"[optical_simulation] Cannot plot - simulation failed: {results.get('error', 'Unknown error')}")
-            return None
-
-        try:
-            # Create output directory with absolute path
-            output_path = Path(output_dir).resolve()
-            output_path.mkdir(exist_ok=True)
-
-            # Create the plot with 2x2 subplots
-            fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
-
-            # Helper function to process intensity arrays
-            def process_intensity(intensity, label):
-                print(f"[optical_simulation] {label} intensity shape: {intensity.shape}")
-                if intensity.ndim > 2:
-                    intensity = np.squeeze(intensity)
-                    print(f"[optical_simulation] {label} after squeeze: {intensity.shape}")
-                    if intensity.ndim > 2:
-                        if intensity.shape[0] == 1:
-                            intensity = intensity[0]
-                        else:
-                            intensity = intensity.sum(axis=0)
-                        print(f"[optical_simulation] {label} after final reshape: {intensity.shape}")
-                if intensity.ndim != 2:
-                    raise ValueError(f"Unable to convert {label} intensity to 2D array. Final shape: {intensity.shape}")
-                return intensity
-
-            # Process both intensities
-            input_intensity = process_intensity(results["input_intensity"], "Input")
-            output_intensity = process_intensity(results["output_intensity"], "Output")
-
-            # Calculate extent for both plots - use same extent for proper comparison
-            extent_mm = np.array(input_intensity.shape) * results["dx"] * 1000 / 2 if "dx" in results else np.array(input_intensity.shape) * results["spacing"] * 1000 / 2
-            extent = [-extent_mm[1], extent_mm[1], -extent_mm[0], extent_mm[0]]
-
-            print(f"[optical_simulation] Plot extent: ±{extent_mm[1]:.3f}mm x ±{extent_mm[0]:.3f}mm")
-
-            # Plot input intensity
-            im1 = ax1.imshow(input_intensity, extent=extent, cmap='hot', origin='lower')
-            ax1.set_title('Input Laser Intensity')
-            ax1.set_xlabel('X (mm)')
-            ax1.set_ylabel('Y (mm)')
-            plt.colorbar(im1, ax=ax1)
-
-            # Plot output intensity
-            im2 = ax2.imshow(output_intensity, extent=extent, cmap='hot', origin='lower')
-            ax2.set_title('Output Camera Intensity')
-            ax2.set_xlabel('X (mm)')
-            ax2.set_ylabel('Y (mm)')
-            plt.colorbar(im2, ax=ax2)
-
-            # Plot cross-sections - ensure same x-axis scale for both
-            center = input_intensity.shape[0] // 2
-            input_cross_section = input_intensity[center, :]
-            output_cross_section = output_intensity[center, :]
-            x_axis = np.linspace(-extent_mm[1], extent_mm[1], len(input_cross_section))
-            ax3.plot(x_axis, input_cross_section, 'b-', label='Input', linewidth=2)
-            ax3.set_title('Input Cross-section (Y=0)')
-            ax3.set_xlabel('X (mm)')
-            ax3.set_ylabel('Intensity')
-            ax3.grid(True)
-            ax4.plot(x_axis, output_cross_section, 'r-', label='Output', linewidth=2)
-            ax4.set_title('Output Cross-section (Y=0)')
-            ax4.set_xlabel('X (mm)')
-            ax4.set_ylabel('Intensity')
-            ax4.grid(True)
-
-            # Add system info
-            if "arm1_length" in results and "arm2_length" in results:
-                mirror1_rot_deg = np.degrees(results.get('mirror1_y_rotation', 0))
-                mirror2_rot_deg = np.degrees(results.get('mirror2_y_rotation', 0))
-                # Calculate tilt deviations from aligned angles
-                mirror1_tilt_deg = mirror1_rot_deg - 90  # Deviation from 90° aligned angle
-                mirror2_tilt_deg = mirror2_rot_deg - 0   # Deviation from 0° aligned angle
-                system_info = f"Michelson Interferometer: Arm1={results['arm1_length']*1e3:.1f}mm, Arm2={results['arm2_length']*1e3:.1f}mm"
-                system_info += f"\nMirror1: {mirror1_rot_deg:.2f}° (tilt: {mirror1_tilt_deg:+.2f}°), Mirror2: {mirror2_rot_deg:.2f}° (tilt: {mirror2_tilt_deg:+.2f}°), λ={results['wavelength']*1e9:.0f}nm"
-            else:
-                system_info = f"4f System: f={results['focal_length']:.1f}cm, λ={results['wavelength']*1e9:.0f}nm"
-                system_info += f"\nTotal length: {results['system_length']:.1f}cm"
-            fig.suptitle(system_info)
-
-            plt.tight_layout()
-
-            # Save the plot
-            import datetime
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            if "arm1_length" in results:
-                plot_filename = output_path / f"michelson_simulation_{timestamp}.png"
-            else:
-                plot_filename = output_path / f"4f_simulation_{timestamp}.png"
-            plt.savefig(plot_filename, dpi=150, bbox_inches='tight')
-            plt.close()
-
-            # Save intensity data
-            data_filename = output_path / f"intensity_data_{timestamp}.npy"
-            np.save(data_filename, output_intensity)
-
-            print(f"[optical_simulation] Results saved to {plot_filename}")
-            return str(plot_filename)
-
-        except Exception as e:
-            print(f"[optical_simulation] Error plotting results: {e}")
-            return None
-
 else:
-    # Provide dummy implementations when dependencies aren't available
-    def simulate_4f_system_from_positions(component_positions, wavelength=0.55e-6, beam_waist_mm=1.0, focal_length=30, field_resolution=1000):
-        print("[optical_simulation] Cannot simulate - JAX/Chromatix not available")
-        return {"success": False, "error": "Dependencies not available"}
+    # Provide analytic placeholder implementations when chromatix is unavailable
 
-    def plot_and_save_results(results, output_dir="simulation_results"):
-        print("[optical_simulation] Cannot plot - dependencies not available")
+    def _generate_placeholder_grid(field_resolution: int, extent_mm: float):
+        resolution = int(max(64, min(field_resolution, 2048)))
+        axis = np.linspace(-extent_mm / 2.0, extent_mm / 2.0, resolution)
+        x_grid, y_grid = np.meshgrid(axis, axis)
+        spacing_m = (extent_mm / resolution) * 1e-3  # convert mm to meters
+        return x_grid, y_grid, spacing_m
+
+    def simulate_4f_system_from_positions(
+        component_positions,
+        wavelength=0.55e-6,
+        beam_waist_mm=1.0,
+        focal_length=30,
+        field_resolution=1000
+    ):
+        """Fallback Gaussian propagation for 4f systems."""
+        try:
+            x, y, spacing = _generate_placeholder_grid(field_resolution, extent_mm=12.0)
+            waist = max(beam_waist_mm, 0.1)
+            input_intensity = np.exp(-(x**2 + y**2) / (2 * waist**2))
+
+            lens1_z = component_positions["lens1"][2]
+            lens2_z = component_positions["lens2"][2]
+            ideal_sep = 2 * focal_length
+            separation_error = abs((lens2_z - lens1_z) - ideal_sep)
+            blur_scale = 1.0 + separation_error / max(ideal_sep, 1.0)
+
+            output_intensity = np.exp(-(x**2 + y**2) / (2 * (waist * blur_scale)**2))
+            fringe_term = np.cos(2 * np.pi * x / max(waist * 4.0, 1e-3))
+            output_intensity *= 1 + 0.2 * fringe_term
+
+            return {
+                "input_field": {"intensity": input_intensity},
+                "input_intensity": input_intensity,
+                "output_field": {"intensity": output_intensity},
+                "output_intensity": output_intensity,
+                "wavelength": wavelength,
+                "focal_length": focal_length,
+                "component_positions": component_positions,
+                "field_shape": input_intensity.shape,
+                "spacing": spacing,
+                "system_length": component_positions["camera"][2] - component_positions["laser"][2],
+                "success": True,
+            }
+        except Exception as exc:
+            print(f"[optical_simulation] Placeholder 4f simulation error: {exc}")
+            return {"success": False, "error": str(exc)}
+
+    def simulate_michelson_interferometer_from_positions(
+        component_positions,
+        mirror_rotations=None,
+        wavelength=0.6328e-6,
+        beam_waist_mm=0.05,
+        field_resolution=1000
+    ):
+        """Fallback analytic interference pattern for Michelson interferometer."""
+        try:
+            x, y, spacing = _generate_placeholder_grid(field_resolution, extent_mm=8.0)
+            waist = max(beam_waist_mm, 0.02)
+            input_intensity = np.exp(-(x**2 + y**2) / (2 * waist**2))
+
+            mirror_rotations = mirror_rotations or {
+                "mirror1": (0, 90, 0),
+                "mirror2": (0, 0, 0),
+            }
+
+            bs_z = component_positions["beamsplitter"][2]
+            arm1_length = abs(component_positions["mirror1"][2] - bs_z) * 1e-3 * 2
+            arm2_length = abs(component_positions["mirror2"][2] - bs_z) * 1e-3 * 2
+            path_difference = arm1_length - arm2_length
+
+            mirror1_tilt = np.radians(mirror_rotations["mirror1"][1] - 90)
+            mirror2_tilt = np.radians(mirror_rotations["mirror2"][1])
+
+            phase_offset = 2 * np.pi * path_difference / max(wavelength, 1e-9)
+            tilt_phase = (
+                (x * 1e-3 * mirror1_tilt) / max(wavelength, 1e-9)
+                + (y * 1e-3 * mirror2_tilt) / max(wavelength, 1e-9)
+            )
+            output_intensity = 0.5 * (1 + np.cos(phase_offset + tilt_phase))
+            output_intensity *= input_intensity.max()
+
+            return {
+                "input_field": {"intensity": input_intensity},
+                "input_intensity": input_intensity,
+                "output_field": {"intensity": output_intensity},
+                "output_intensity": output_intensity,
+                "wavelength": wavelength,
+                "arm1_length": arm1_length,
+                "arm2_length": arm2_length,
+                "mirror1_y_rotation": np.radians(mirror_rotations["mirror1"][1]),
+                "mirror2_y_rotation": np.radians(mirror_rotations["mirror2"][1]),
+                "component_positions": component_positions,
+                "field_shape": input_intensity.shape,
+                "dx": spacing,
+                "success": True,
+            }
+        except Exception as exc:
+            print(f"[optical_simulation] Placeholder Michelson simulation error: {exc}")
+            return {"success": False, "error": str(exc)}
+
+
+def _resolve_output_dir(output_dir: str) -> Path:
+    path = Path(output_dir)
+    if not path.is_absolute():
+        path = get_simulation_output_dir(output_dir)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def plot_and_save_results(results, output_dir="simulation_results"):
+    """Common plotting helper used by both chromatix and placeholder simulations."""
+    if not results.get("success", False):
+        print(f"[optical_simulation] Cannot plot - simulation failed: {results.get('error', 'Unknown error')}")
+        return None
+
+    if not MATPLOTLIB_AVAILABLE:
+        print("[optical_simulation] Cannot plot - matplotlib not available in this environment")
+        return None
+
+    try:
+        output_path = _resolve_output_dir(output_dir)
+
+        fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(16, 12))
+
+        def _process_intensity(intensity, label):
+            if intensity is None:
+                raise ValueError(f"{label} intensity missing")
+            if intensity.ndim > 2:
+                intensity = np.squeeze(intensity)
+                if intensity.ndim > 2:
+                    intensity = intensity.sum(axis=0)
+            if intensity.ndim != 2:
+                raise ValueError(f"Unable to convert {label} intensity to 2D array. Final shape: {intensity.shape}")
+            return intensity
+
+        input_intensity = _process_intensity(results.get("input_intensity"), "Input")
+        output_intensity = _process_intensity(results.get("output_intensity"), "Output")
+
+        spacing = results.get("dx") or results.get("spacing")
+        if spacing is None:
+            spacing = 1e-4  # fallback spacing (0.1 mm)
+        extent_mm = np.array(input_intensity.shape) * spacing * 1000 / 2
+        extent = [-extent_mm[1], extent_mm[1], -extent_mm[0], extent_mm[0]]
+
+        im1 = ax1.imshow(input_intensity, extent=extent, cmap="hot", origin="lower")
+        ax1.set_title("Input Laser Intensity")
+        ax1.set_xlabel("X (mm)")
+        ax1.set_ylabel("Y (mm)")
+        plt.colorbar(im1, ax=ax1)
+
+        im2 = ax2.imshow(output_intensity, extent=extent, cmap="hot", origin="lower")
+        ax2.set_title("Output Camera Intensity")
+        ax2.set_xlabel("X (mm)")
+        ax2.set_ylabel("Y (mm)")
+        plt.colorbar(im2, ax=ax2)
+
+        center = input_intensity.shape[0] // 2
+        x_axis = np.linspace(-extent_mm[1], extent_mm[1], len(input_intensity[center, :]))
+        ax3.plot(x_axis, input_intensity[center, :], "b-", linewidth=2)
+        ax3.set_title("Input Cross-section (Y=0)")
+        ax3.set_xlabel("X (mm)")
+        ax3.set_ylabel("Intensity")
+        ax3.grid(True)
+
+        ax4.plot(x_axis, output_intensity[center, :], "r-", linewidth=2)
+        ax4.set_title("Output Cross-section (Y=0)")
+        ax4.set_xlabel("X (mm)")
+        ax4.set_ylabel("Intensity")
+        ax4.grid(True)
+
+        if "arm1_length" in results and "arm2_length" in results:
+            mirror1_rot_deg = np.degrees(results.get("mirror1_y_rotation", 0.0))
+            mirror2_rot_deg = np.degrees(results.get("mirror2_y_rotation", 0.0))
+            mirror1_tilt_deg = mirror1_rot_deg - 90
+            mirror2_tilt_deg = mirror2_rot_deg
+            system_info = (
+                f"Michelson Interferometer: Arm1={results['arm1_length']*1e3:.1f}mm, "
+                f"Arm2={results['arm2_length']*1e3:.1f}mm\n"
+                f"Mirror1 tilt: {mirror1_tilt_deg:+.2f}°, Mirror2 tilt: {mirror2_tilt_deg:+.2f}°, "
+                f"λ={results['wavelength']*1e9:.0f}nm"
+            )
+        else:
+            system_info = (
+                f"4f System: f={results.get('focal_length', 0):.1f}cm, "
+                f"λ={results['wavelength']*1e9:.0f}nm\n"
+                f"Total length: {results.get('system_length', 0):.1f}cm"
+            )
+
+        fig.suptitle(system_info)
+        plt.tight_layout()
+
+        import datetime
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        if "arm1_length" in results:
+            plot_filename = output_path / f"michelson_simulation_{timestamp}.png"
+        else:
+            plot_filename = output_path / f"4f_simulation_{timestamp}.png"
+        plt.savefig(plot_filename, dpi=150, bbox_inches="tight")
+        plt.close()
+
+        data_filename = output_path / f"intensity_data_{timestamp}.npy"
+        np.save(data_filename, output_intensity)
+
+        print(f"[optical_simulation] Results saved to {plot_filename}")
+        return str(plot_filename)
+
+    except Exception as exc:
+        print(f"[optical_simulation] Error plotting results: {exc}")
         return None

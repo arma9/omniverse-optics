@@ -11,18 +11,53 @@ import json
 import os
 import subprocess
 from pathlib import Path
-import omni.ui as ui
-import omni.kit.commands
-import omni.usd
+
 import carb
 import math
+import omni.kit.commands
+import omni.ui as ui
+import omni.usd
 from pxr import Usd, UsdGeom, Sdf, Gf
+
+from .utils.path_utils import (
+    ensure_graphs_dir,
+    find_graph_file,
+    find_project_root,
+    get_chromatix_docs_dir,
+    get_extension_root,
+    get_prefabs_dir,
+)
+
+GRAPH_SAMPLE_FILES = ("fourfplusmichelson.json", "example_4f_system.json")
 
 # Global variable to track the graph editor process
 _graph_editor_process = None
 # Global variable to track currently loaded graph
 _current_graph_data = None
 _current_graph_path = None
+
+
+def _get_default_graph_file() -> Path | None:
+    """Return a demo graph JSON path if one exists."""
+    sample = find_graph_file(GRAPH_SAMPLE_FILES)
+    if sample:
+        return sample
+
+    fallback = get_extension_root() / "example_4f_system.json"
+    if fallback.exists():
+        return fallback
+
+    graphs_dir = ensure_graphs_dir()
+    candidate = graphs_dir / GRAPH_SAMPLE_FILES[0]
+    return candidate if candidate.exists() else None
+
+
+def _get_default_graph_dir() -> Path:
+    """Directory to pre-select when prompting for graph JSON files."""
+    default_file = _get_default_graph_file()
+    if default_file:
+        return default_file.parent
+    return ensure_graphs_dir()
 
 def check_pyside6_availability():
     """Check if PySide6 is available in the current Python environment."""
@@ -92,23 +127,12 @@ def launch_pyside6_graph_editor():
                     carb.log_error("Failed to install PySide6. Please install it manually: pip install PySide6")
                     return None
 
-        # Find the path to the graphing.py file
-        # Navigate from the extension directory to the chromatix experiments directory
-        current_file = Path(__file__).resolve()
-
-        # Go up to kit-app-template directory
-        kit_app_template = None
-        for parent in current_file.parents:
-            if parent.name == "kit-app-template":
-                kit_app_template = parent
-                break
-
-        if not kit_app_template:
-            carb.log_error("Could not find kit-app-template directory")
+        docs_dir = get_chromatix_docs_dir()
+        if not docs_dir:
+            carb.log_error("Could not locate chromatix docs directory. Please download the chromatix assets.")
             return None
 
-        # Path to the graphing.py script
-        graphing_script = kit_app_template / "source" / "physics" / "chromatix" / "docs" / "experiments" / "graphing.py"
+        graphing_script = docs_dir / "graphing.py"
 
         if not graphing_script.exists():
             carb.log_error(f"Graphing script not found at: {graphing_script}")
@@ -209,19 +233,7 @@ class OpticalLayoutGenerator:
             "BeamSplitter": "BEAM_SPLITTER_PREFAB.usd",
             "Camera": "CAMERA_PREFAB.usd"
         }
-
-        # Find paths
-        current_file = Path(__file__).resolve()
-        self.kit_app_template = None
-        for parent in current_file.parents:
-            if parent.name == "kit-app-template":
-                self.kit_app_template = parent
-                break
-
-        if not self.kit_app_template:
-            raise RuntimeError("Could not find kit-app-template directory")
-
-        self.prefabs_dir = self.kit_app_template / "CAD" / "prefabs"
+        self.prefabs_dir = get_prefabs_dir()
 
     def load_graph_json(self, json_path):
         """Load and parse graph JSON file."""
@@ -791,15 +803,7 @@ def load_and_generate_scene_with_picker():
                 else:
                     carb.log_warn("No JSON file selected or invalid file type")
 
-            # Find the default directory (chromatix physics folder)
-            current_file = Path(__file__).resolve()
-            kit_app_template = None
-            for parent in current_file.parents:
-                if parent.name == "kit-app-template":
-                    kit_app_template = parent
-                    break
-
-            default_dir = str(kit_app_template / "source" / "physics" / "chromatix") if kit_app_template else None
+            default_dir = str(_get_default_graph_dir())
 
             # Try to open file picker dialog
             import omni.kit.window.file_importer
@@ -813,7 +817,6 @@ def load_and_generate_scene_with_picker():
                 validation_fn=lambda path: path.endswith('.json')
             )
 
-            # Set callback for when file is selected
             file_importer.add_filename_changed_fn(on_file_selected)
 
         except Exception as omni_error:
@@ -823,15 +826,7 @@ def load_and_generate_scene_with_picker():
             import tkinter as tk
             from tkinter import filedialog
 
-            # Find the default directory
-            current_file = Path(__file__).resolve()
-            kit_app_template = None
-            for parent in current_file.parents:
-                if parent.name == "kit-app-template":
-                    kit_app_template = parent
-                    break
-
-            default_dir = str(kit_app_template / "source" / "physics" / "chromatix") if kit_app_template else str(Path.home())
+            default_dir = str(_get_default_graph_dir())
 
             # Create a hidden root window
             root = tk.Tk()
@@ -898,34 +893,24 @@ def load_and_generate_scene():
         # This bypasses the file picker issues and gives you immediate functionality
         carb.log_info("Loading fourfplusmichelson.json directly...")
 
-        # Find the JSON file
-        current_file = Path(__file__).resolve()
-        kit_app_template = None
-        for parent in current_file.parents:
-            if parent.name == "kit-app-template":
-                kit_app_template = parent
-                break
+        json_path = _get_default_graph_file()
+        if not json_path or not json_path.exists():
+            carb.log_error("No demo graph JSON file available. Please add one to the graphs directory.")
+            return
 
-        if kit_app_template:
-            json_path = kit_app_template / "source" / "physics" / "chromatix" / "fourfplusmichelson.json"
-            if json_path.exists():
-                carb.log_info(f"Loading JSON file: {json_path}")
-                generator = OpticalLayoutGenerator()
-                graph_data = generator.load_graph_json(str(json_path))
+        carb.log_info(f"Loading JSON file: {json_path}")
+        generator = OpticalLayoutGenerator()
+        graph_data = generator.load_graph_json(str(json_path))
 
-                if graph_data:
-                    carb.log_info("JSON loaded successfully, generating USD scene...")
-                    success = generator.create_usd_scene(graph_data)
-                    if success:
-                        carb.log_info("USD scene generation completed successfully!")
-                    else:
-                        carb.log_error("USD scene generation failed")
-                else:
-                    carb.log_error("Failed to load graph data from JSON")
+        if graph_data:
+            carb.log_info("JSON loaded successfully, generating USD scene...")
+            success = generator.create_usd_scene(graph_data)
+            if success:
+                carb.log_info("USD scene generation completed successfully!")
             else:
-                carb.log_error(f"JSON file not found at: {json_path}")
+                carb.log_error("USD scene generation failed")
         else:
-            carb.log_error("Could not find kit-app-template directory")
+            carb.log_error("Failed to load graph data from JSON")
 
     except Exception as e:
         carb.log_error(f"Error in load_and_generate_scene: {e}")
@@ -935,20 +920,17 @@ def load_and_generate_scene():
 def get_available_json_files():
     """Get list of available JSON files in the chromatix directory."""
     try:
-        current_file = Path(__file__).resolve()
-        kit_app_template = None
-        for parent in current_file.parents:
-            if parent.name == "kit-app-template":
-                kit_app_template = parent
-                break
-
-        if kit_app_template:
-            chromatix_dir = kit_app_template / "source" / "physics" / "chromatix"
-            if chromatix_dir.exists():
-                json_files = list(chromatix_dir.glob("*.json"))
-                return [(f.name, str(f)) for f in json_files]
-
-        return []
+        directories = [
+            ensure_graphs_dir(),
+            get_extension_root(),
+            find_project_root() / "source" / "physics" / "chromatix",
+        ]
+        json_files = []
+        for directory in directories:
+            if directory.exists():
+                for file in directory.glob("*.json"):
+                    json_files.append((file.name, str(file)))
+        return json_files
     except Exception as e:
         carb.log_error(f"Error getting available JSON files: {e}")
         return []
@@ -983,14 +965,13 @@ def create_minimal_json_loader():
         with window.frame:
             with ui.VStack(spacing=5):
                 ui.Label("JSON Loader")
-                ui.Button("Load fourfplusmichelson.json",
-                         clicked_fn=lambda: load_specific_json_file(
-                             "C:/Users/armmt/OneDrive/Desktop/omniverse/kit-app-template/source/physics/chromatix/fourfplusmichelson.json"
-                         ))
-                ui.Button("Load fout-f-plus-michelson.json",
-                         clicked_fn=lambda: load_specific_json_file(
-                             "C:/Users/armmt/OneDrive/Desktop/omniverse/kit-app-template/source/physics/chromatix/fout-f-plus-michelson.json"
-                         ))
+                default_file = _get_default_graph_file()
+                if default_file and default_file.exists():
+                    ui.Button(
+                        f"Load {default_file.name}",
+                        clicked_fn=lambda: load_specific_json_file(str(default_file))
+                    )
+                ui.Button("Choose JSON File...", clicked_fn=load_and_generate_scene_with_picker)
                 ui.Button("Close", clicked_fn=lambda: setattr(window, 'visible', False))
 
         print(f"[DEBUG] Minimal JSON loader created: {window}")
@@ -1330,8 +1311,13 @@ def create_graph_editor_interface(extension_ref=None):
                 ui.Label("Graph Management", height=20, style={"font_size": 14})
 
                 def create_graph_placeholder():
-                    print("[DEBUG] Create Graph clicked - placeholder functionality")
-                    carb.log_info("Create Graph placeholder called")
+                    print("[DEBUG] Create Graph clicked - loading default sample graph")
+                    demo_path = _get_default_graph_file()
+                    if demo_path and demo_path.exists():
+                        load_specific_json_file(str(demo_path))
+                        carb.log_info(f"Loaded demo graph from {demo_path}")
+                    else:
+                        carb.log_error("No demo graph found. Add a JSON file to the graphs directory.")
 
                 def load_graph_from_file():
                     print("[DEBUG] Load Graph from File clicked")
@@ -1340,16 +1326,12 @@ def create_graph_editor_interface(extension_ref=None):
 
                 def load_demo_graph():
                     print("[DEBUG] Load Demo Graph clicked")
-                    carb.log_info("Loading demo graph (4f plus Michelson system)...")
-                    # Load the fourfplusmichelson.json file
-                    current_file = Path(__file__).resolve()
-                    for parent in current_file.parents:
-                        if parent.name == "kit-app-template":
-                            demo_path = parent / "source" / "physics" / "chromatix" / "fourfplusmichelson.json"
-                            if demo_path.exists():
-                                load_specific_json_file(str(demo_path))
-                                return
-                    carb.log_error("Demo graph file not found")
+                    demo_path = _get_default_graph_file()
+                    if demo_path and demo_path.exists():
+                        load_specific_json_file(str(demo_path))
+                        carb.log_info(f"Loaded demo graph: {demo_path}")
+                    else:
+                        carb.log_error("Demo graph file not found. Please add one to the graphs directory.")
 
                 with ui.VStack(spacing=5):
                     ui.Button("Create Graph", clicked_fn=create_graph_placeholder)
@@ -1489,22 +1471,15 @@ def create_graph_editor_interface(extension_ref=None):
                         graph_data, graph_path = get_current_graph_data()
 
                         if graph_data is None:
-                            # Fallback to demo graph if no graph is loaded
                             print("[DEBUG] No graph loaded, using demo graph...")
-                            current_file = Path(__file__).resolve()
-                            for parent in current_file.parents:
-                                if parent.name == "kit-app-template":
-                                    demo_path = parent / "source" / "physics" / "chromatix" / "fourfplusmichelson.json"
-                                    if demo_path.exists():
-                                        with open(demo_path, 'r') as f:
-                                            graph_data = json.load(f)
-                                        graph_path = str(demo_path)
-                                        set_current_graph_data(graph_data, graph_path)
-                                        break
-                            else:
-                                carb.log_error("No graph loaded and could not find demo graph")
-                                print("[DEBUG ERROR] No graph loaded and could not find demo graph")
+                            demo_path = _get_default_graph_file()
+                            if not demo_path or not demo_path.exists():
+                                carb.log_error("No graph loaded and demo graph not found")
                                 return
+                            with open(demo_path, 'r') as f:
+                                graph_data = json.load(f)
+                            graph_path = str(demo_path)
+                            set_current_graph_data(graph_data, graph_path)
 
                         print(f"[DEBUG] Using graph: {Path(graph_path).name}")
                         print(f"[DEBUG] Graph has {len(graph_data['nodes'])} nodes and {len(graph_data['edges'])} edges")

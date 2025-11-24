@@ -22,6 +22,10 @@ import math
 import sys
 import os
 
+from .utils.path_utils import find_graph_file, get_extension_root
+
+GRAPH_SAMPLE_FILES = ("fourfplusmichelson.json", "example_4f_system.json")
+
 print("[mit.test_extensions_1] About to import physics module...")
 try:
     from .physics import get_physics_status
@@ -1319,21 +1323,13 @@ class MyExtension(omni.ext.IExt):
 
             print(f"[mit.test_extensions_1] Turning on graph lasers - Wavelength: {wavelength_nm:.1f}nm, Beam Waist: {beam_waist_mm:.2f}mm")
 
-            # Load the graph JSON file (same as used by graph editor)
-            current_file = Path(__file__).resolve()
-            kit_app_template = None
-            for parent in current_file.parents:
-                if parent.name == "kit-app-template":
-                    kit_app_template = parent
-                    break
+            json_path = find_graph_file(GRAPH_SAMPLE_FILES)
+            if not json_path:
+                fallback = get_extension_root() / "example_4f_system.json"
+                json_path = fallback if fallback.exists() else None
 
-            if not kit_app_template:
-                print("[mit.test_extensions_1] Could not find kit-app-template directory")
-                return False
-
-            json_path = kit_app_template / "source" / "physics" / "chromatix" / "fourfplusmichelson.json"
-            if not json_path.exists():
-                print(f"[mit.test_extensions_1] JSON file not found at: {json_path}")
+            if not json_path or not Path(json_path).exists():
+                print("[mit.test_extensions_1] No graph JSON file available. Add one to the graphs directory.")
                 return False
 
             # Load and parse JSON
